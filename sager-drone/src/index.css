@@ -1,0 +1,96 @@
+.sidebar {
+  width: 320px;
+  overflow-y: auto;
+  border-right: 1px solid #ccc;
+  padding: 12px;
+  background: #f7f7f7;
+  box-sizing: border-box;
+}
+
+.sidebar-title {
+  margin: 6px 0 12px;
+  font-weight: 700;
+  font-size: 16px;
+  color: #111;
+}
+
+.empty-hint {
+  font-size: 13px;
+  color: #666;
+  padding: 8px;
+}
+
+.drone-item {
+  padding: 10px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  transition: background 0.2s, color 0.2s, transform 0.1s;
+  color: #fff;
+  border: 1px solid transparent;
+}
+
+.drone-item.allowed {
+  background-color: #4caf50; 
+}
+
+.drone-item.not-allowed {
+  background-color: #f44336;
+}
+
+.drone-item.selected {
+  outline: 2px solid #111;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.2) inset;
+}
+
+.drone-item:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.drone-icon {
+  width: 18px;
+  height: 18px;
+  margin-right: 10px;
+  filter: drop-shadow(0 1px 0 rgba(0,0,0,0.2));
+}
+
+.drone-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.drone-id {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.drone-sub {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.counter {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  padding: 10px 12px;
+  background-color: rgba(255,255,255,0.92);
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.pulse {
+  animation: pulseScale 0.8s ease;
+}
+
+@keyframes pulseScale {
+  0% { transform: scale(1) rotate(var(--rot, 0deg)); }
+  50% { transform: scale(1.15) rotate(var(--rot, 0deg)); }
+  100% { transform: scale(1) rotate(var(--rot, 0deg)); }
+}
+
