@@ -5,9 +5,11 @@ import useDroneStore from "./store";
 import "./index.css";
 import "mapbox-gl/dist/mapbox-gl.css";
 
-// Toggle demo mode (fake movement when no live data)
 const DEMO_MODE = false;
 const DEMO_INTERVAL_MS = 500;
+
+const ALLOWED_PREFIX = "SD-";
+const ALLOWED_CHAR = "B";
 
 mapboxgl.accessToken =
   "pk.eyJ1IjoiYWJkZWxyYWhtYW5hc3NhciIsImEiOiJjbWV0bDcxcnMwMGdjMm5zODdxa2R6ZjY3In0.iGYzvWg33bknHCuablcSXA";
@@ -17,21 +19,18 @@ export default function App() {
   const map = useRef(null);
   const socketRef = useRef(null);
 
-  // Keep references to markers and frozen positions for restricted drones
   const markersRef = useRef(new Map());
   const frozenPosRef = useRef(new Map());
 
-  // Zustand state management
   const addOrUpdateDrone = useDroneStore((s) => s.addOrUpdateDrone);
   const drones = useDroneStore((s) => s.drones);
   const selectedDroneId = useDroneStore((s) => s.selectedDroneId);
   const setSelectedDrone = useDroneStore((s) => s.setSelectedDrone);
 
-  // Drones are only "allowed" if ID starts with "SD-B..."
   const isAllowed = (id) => {
     if (!id || typeof id !== "string") return false;
-    if (!id.startsWith("SD-")) return false;
-    return id[3] === "B";
+    if (!id.startsWith(ALLOWED_PREFIX)) return false;
+    return id[ALLOWED_PREFIX.length] === ALLOWED_CHAR;
   };
 
   const redDrones = useMemo(
@@ -39,7 +38,6 @@ export default function App() {
     [drones]
   );
 
-  // Format flight time
   const fmtFlightTime = (ms) => {
     const total = Math.max(0, Math.floor(ms / 1000));
     const h = String(Math.floor(total / 3600)).padStart(2, "0");
@@ -48,7 +46,6 @@ export default function App() {
     return `${h}:${m}:${s}`;
   };
 
-  // Popup content for each drone
   const popupHTML = (drone) => {
     const flightMs = Date.now() - (drone.firstSeen || Date.now());
     return `
@@ -63,7 +60,17 @@ export default function App() {
     `;
   };
 
-  // 1) Initialize Mapbox map with line layer for drone paths
+  const createMarkerElement = (imgSrc) => {
+    const el = document.createElement("img");
+    el.src = imgSrc;
+    el.alt = "drone";
+    el.style.width = "30px";
+    el.style.height = "30px";
+    el.style.transformOrigin = "center center";
+    el.style.cursor = "pointer";
+    return el;
+  };
+
   useEffect(() => {
     if (map.current) return;
 
@@ -91,8 +98,8 @@ export default function App() {
           "line-color": [
             "case",
             ["==", ["get", "allowed"], true],
-            "#2e7d32", // green for allowed
-            "#c62828", // red for not allowed
+            "#2e7d32",
+            "#c62828",
           ],
           "line-width": 3,
           "line-opacity": 0.9,
@@ -101,7 +108,6 @@ export default function App() {
     });
   }, []);
 
-  // 2) Connect to WebSocket server and receive live drone data
   useEffect(() => {
     const socket = io("http://localhost:9013", { transports: ["polling"] });
     socketRef.current = socket;
@@ -120,7 +126,6 @@ export default function App() {
       if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
 
       if (!isAllowed(id)) {
-        // Restricted drone: freeze its first position and ignore further updates
         const key = String(id);
         if (!frozenPosRef.current.has(key)) {
           frozenPosRef.current.set(key, { lon, lat, yaw });
@@ -138,7 +143,6 @@ export default function App() {
           organization: p.organization,
         });
       } else {
-        // Allowed drone: update normally and clear any frozen lock
         frozenPosRef.current.delete(String(id));
         addOrUpdateDrone({
           id,
@@ -157,7 +161,6 @@ export default function App() {
     return () => socket.disconnect();
   }, [addOrUpdateDrone]);
 
-  // 3) DEMO mode: animate allowed drones in circular paths
   useEffect(() => {
     if (!DEMO_MODE) return;
     if (!Object.keys(drones).length) return;
@@ -196,7 +199,6 @@ export default function App() {
     return () => clearInterval(timer);
   }, [drones]);
 
-  // 4) Add or update markers for each drone
   useEffect(() => {
     if (!map.current) return;
 
@@ -207,13 +209,7 @@ export default function App() {
 
       let marker = markersRef.current.get(id);
       if (!marker) {
-        const el = document.createElement("img");
-        el.src = imgSrc;
-        el.alt = "drone";
-        el.style.width = "30px";
-        el.style.height = "30px";
-        el.style.transformOrigin = "center center";
-        el.style.cursor = "pointer";
+        const el = createMarkerElement(imgSrc);
 
         const popup = new mapboxgl.Popup({ offset: 24, closeButton: false }).setHTML(
           popupHTML(drone)
@@ -229,6 +225,7 @@ export default function App() {
       }
 
       marker.setLngLat([drone.lon, drone.lat]);
+
       const el = marker.getElement();
       if (el) {
         const wanted = window.location.origin + imgSrc;
@@ -241,12 +238,10 @@ export default function App() {
           el.style.transform = `rotate(${drone.yaw || 0}deg)`;
         }
       }
-      if (marker.getPopup()) {
-        marker.getPopup().setHTML(popupHTML(drone));
-      }
+
+      marker.getPopup()?.setHTML(popupHTML(drone));
     });
 
-    // Remove markers for drones that disappeared
     const currentIds = new Set(Object.keys(drones).map(String));
     for (const [id, marker] of markersRef.current.entries()) {
       if (!currentIds.has(String(id))) {
@@ -256,7 +251,6 @@ export default function App() {
     }
   }, [drones, setSelectedDrone]);
 
-  // 5) Update path layer when drones move
   useEffect(() => {
     if (!map.current) return;
     const src = map.current.getSource("drone-paths");
@@ -270,11 +264,9 @@ export default function App() {
         geometry: { type: "LineString", coordinates: d.path },
       }));
 
-    const fc = { type: "FeatureCollection", features };
-    src.setData(fc);
+    src.setData({ type: "FeatureCollection", features });
   }, [drones]);
 
-  // 6) Fly to a selected drone and highlight it
   useEffect(() => {
     if (!map.current || selectedDroneId == null) return;
     const d = drones[selectedDroneId];
@@ -287,18 +279,15 @@ export default function App() {
     });
 
     const marker = markersRef.current.get(selectedDroneId);
-    if (marker) {
-      const el = marker.getElement();
-      if (el) {
-        el.classList.add("pulse");
-        setTimeout(() => el.classList.remove("pulse"), 800);
-      }
+    const el = marker?.getElement();
+    if (el) {
+      el.classList.add("pulse");
+      setTimeout(() => el.classList.remove("pulse"), 800);
     }
   }, [selectedDroneId, drones]);
 
   return (
     <div style={{ display: "flex", height: "100vh", position: "relative" }}>
-      {/* Sidebar list of drones */}
       <div className="sidebar">
         <h3 className="sidebar-title">Drones List</h3>
         {Object.values(drones).length === 0 && (
@@ -329,10 +318,8 @@ export default function App() {
         })}
       </div>
 
-      {/* Map container */}
       <div ref={mapContainer} style={{ flex: 1 }} />
 
-      {/* Counter for restricted drones */}
       <div className="counter">Red Drones: {redDrones.length}</div>
     </div>
   );
